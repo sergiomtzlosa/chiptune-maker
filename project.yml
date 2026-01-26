@@ -1,0 +1,92 @@
+name: ChiptuneMaker
+options:
+  bundleIdPrefix: com.sid
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CLANG_ENABLE_OBJC_ARC: YES
+    CLANG_ENABLE_MODULES: YES
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGNING_ALLOWED: NO
+    GCC_C_LANGUAGE_STANDARD: gnu17
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+    WARNING_CFLAGS:
+      - -Wall
+      - -Wextra
+      - -Wno-unused-parameter
+targets:
+  libLSDJ:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: ChiptuneMaker/ThirdParty/libLSDJ/src
+        compilerFlags: "-w"
+    settings:
+      base:
+        PRODUCT_NAME: LSDJ
+        USE_HEADERMAP: NO
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/ChiptuneMaker/ThirdParty/libLSDJ/include
+          - $(SRCROOT)/ChiptuneMaker/ThirdParty/libLSDJ/include/lsdj
+  ChiptuneMaker:
+    type: application
+    platform: macOS
+    sources:
+      - path: ChiptuneMaker
+        excludes:
+          - Resources/Info.plist
+          - ThirdParty
+    settings:
+      base:
+        INFOPLIST_FILE: ChiptuneMaker/Resources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.sid.ChiptuneMaker
+        PRODUCT_NAME: ChiptuneMaker
+        GENERATE_INFOPLIST_FILE: NO
+        COMBINE_HIDPI_IMAGES: YES
+        OTHER_CFLAGS:
+          - -isystem
+          - $(SRCROOT)/ChiptuneMaker/ThirdParty/libLSDJ/include
+    dependencies:
+      - target: libLSDJ
+      - sdk: AppKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: AudioToolbox.framework
+      - sdk: Security.framework
+      - sdk: UniformTypeIdentifiers.framework
+  ChiptuneMakerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ChiptuneMakerTests
+    dependencies:
+      - target: ChiptuneMaker
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sid.ChiptuneMakerTests
+        GENERATE_INFOPLIST_FILE: YES
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/ChiptuneMaker/Models
+          - $(SRCROOT)/ChiptuneMaker/Audio
+          - $(SRCROOT)/ChiptuneMaker/Generation
+          - $(SRCROOT)/ChiptuneMaker/Export
+          - $(SRCROOT)/ChiptuneMaker/AI
+          - $(SRCROOT)/ChiptuneMaker/UI
+          - $(SRCROOT)/ChiptuneMaker/App
+        OTHER_CFLAGS:
+          - -isystem
+          - $(SRCROOT)/ChiptuneMaker/ThirdParty/libLSDJ/include
+schemes:
+  ChiptuneMaker:
+    build:
+      targets:
+        ChiptuneMaker: all
+        ChiptuneMakerTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ChiptuneMakerTests
