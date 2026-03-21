@@ -83,6 +83,7 @@ ChipInstrumentParams ChipInstrumentParamsForTrack(Track *track) {
         _loopEnabled = NO;
         _loopStartTick = 0;
         _loopEndTick = 0;
+        _stopsAtSongEnd = YES;
         self.playing = NO;
         atomic_init(&_playheadTick, 0);
         for (NSInteger i = 0; i < 8; i++) {
@@ -328,7 +329,8 @@ ChipInstrumentParams ChipInstrumentParamsForTrack(Track *track) {
     }
 
     BOOL looping = self.loopEnabled && self.loopEndTick > self.loopStartTick;
-    if (!looping && _totalTicks == 0) {
+    BOOL stopAtEnd = self.stopsAtSongEnd;
+    if (!looping && stopAtEnd && _totalTicks == 0) {
         memset(left, 0, frames * sizeof(float));
         memset(right, 0, frames * sizeof(float));
         _peak = 0.0f;
@@ -345,7 +347,7 @@ ChipInstrumentParams ChipInstrumentParamsForTrack(Track *track) {
             break;
         }
 
-        if (!looping && _currentTick >= (double)_totalTicks - 0.5) {
+        if (!looping && stopAtEnd && _currentTick >= (double)_totalTicks - 0.5) {
             _currentTick = (double)_totalTicks;
             self.playing = NO;
             atomic_store(&_playheadTick, _totalTicks);
@@ -376,7 +378,7 @@ ChipInstrumentParams ChipInstrumentParamsForTrack(Track *track) {
             NSUInteger framesUntilLoop = (NSUInteger)ceil(untilLoop / _ticksPerSample);
             if (framesUntilLoop < 1) framesUntilLoop = 1;
             if (framesUntilLoop < framesToRender) framesToRender = framesUntilLoop;
-        } else {
+        } else if (stopAtEnd) {
             double untilEnd = (double)_totalTicks - _currentTick;
             NSUInteger framesUntilEnd = (NSUInteger)ceil(untilEnd / _ticksPerSample);
             if (framesUntilEnd < 1) framesUntilEnd = 1;
@@ -395,7 +397,7 @@ ChipInstrumentParams ChipInstrumentParamsForTrack(Track *track) {
             if (_currentTick >= (double)self.loopEndTick) {
                 [self performLoop];
             }
-        } else if (_currentTick >= (double)_totalTicks - 0.5) {
+        } else if (stopAtEnd && _currentTick >= (double)_totalTicks - 0.5) {
             _currentTick = (double)_totalTicks;
             self.playing = NO;
             atomic_store(&_playheadTick, _totalTicks);

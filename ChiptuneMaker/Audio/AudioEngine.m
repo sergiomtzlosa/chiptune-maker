@@ -98,7 +98,7 @@
 - (void)reloadSong {
     if (!self.song) return;
     BOOL wasPlaying = self.isPlaying;
-    uint64_t tick = (uint64_t)self.renderer.currentTick;
+    uint64_t tick = MIN((uint64_t)self.renderer.currentTick, self.song.totalTicks);
     if (self.prepared && self.engine.isRunning) {
         [self.engine stop];
     }
@@ -109,7 +109,12 @@
     if (self.prepared) {
         [self.engine prepare];
         if (wasPlaying) {
-            [self.engine startAndReturnError:nil];
+            NSError *startError = nil;
+            if (![self.engine startAndReturnError:&startError]) {
+                NSLog(@"AudioEngine failed to restart: %@", startError);
+                self.playing = NO;
+                self.renderer.playing = NO;
+            }
         }
     }
 }
@@ -125,7 +130,12 @@
     self.playing = YES;
     self.renderer.playing = YES;
     if (!self.engine.isRunning) {
-        [self.engine startAndReturnError:nil];
+        NSError *startError = nil;
+        if (![self.engine startAndReturnError:&startError]) {
+            NSLog(@"AudioEngine failed to start: %@", startError);
+            self.playing = NO;
+            self.renderer.playing = NO;
+        }
     }
 }
 

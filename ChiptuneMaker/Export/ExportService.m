@@ -81,6 +81,7 @@ static NSError *ExportError(NSString *message) {
             NSInteger sampleRate = options.sampleRate > 0 ? options.sampleRate : 44100;
             ChipRenderer *renderer = [[ChipRenderer alloc] initWithSampleRate:(double)sampleRate];
             [renderer prepareWithSong:song];
+            renderer.stopsAtSongEnd = NO; // Capture the release tail after the final tick.
             renderer.playing = YES;
             double ticksPerSecond = (double)song.ppq * song.tempo / 60.0;
             NSUInteger musicFrames = (NSUInteger)ceil((double)song.totalTicks / ticksPerSecond * (double)sampleRate);

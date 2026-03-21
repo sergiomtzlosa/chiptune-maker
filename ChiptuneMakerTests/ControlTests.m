@@ -135,8 +135,11 @@
     self.document = [[SongDocument alloc] init];
     MainWindowController *windowController = [[MainWindowController alloc] initWithDocument:self.document];
     MainViewController *controller = (MainViewController *)windowController.window.contentViewController;
+    NSView *preferred = controller.preferredFirstResponder;
 
-    XCTAssertEqual(windowController.window.initialFirstResponder, controller.preferredFirstResponder);
+    XCTAssertNotNil(preferred);
+    XCTAssertTrue([preferred isKindOfClass:[StepSequencerView class]]);
+    XCTAssertEqual(windowController.window.initialFirstResponder, preferred);
 }
 
 @end
