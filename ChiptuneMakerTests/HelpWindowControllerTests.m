@@ -17,6 +17,9 @@
     [controller showTopicWithIdentifier:ChiptuneHelpTopicShortcuts];
     XCTAssertEqualObjects(controller.selectedTopicTitle, @"Keyboard Shortcuts");
 
+    [controller showTopicWithIdentifier:ChiptuneHelpTopicImporting];
+    XCTAssertEqualObjects(controller.selectedTopicTitle, @"Importing Audio");
+
     [controller.window close];
 }
 

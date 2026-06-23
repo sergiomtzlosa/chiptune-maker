@@ -14,8 +14,9 @@ A native macOS chiptune composer and tracker written in Objective-C with AppKit.
 - **Chip synthesis** — pulse waves (12.5%, 25%, 50%), NES-style triangle, 15-bit LFSR noise, and wavetable voices with ADSR, vibrato, pitch slide, and arpeggio.
 - **Real-time playback** — `AVAudioEngine` with an `AVAudioSourceNode` pulling from the same renderer used for offline export. Tempo, volume, pan, mute, solo, instrument, vibrato, pitch slide, and arpeggio update live while the song plays. Playback stops automatically at the final bar unless **Loop** is enabled.
 - **Seeded generation** — deterministic offline composition with SplitMix64; regenerating one track leaves the others untouched.
+- **Audio to chiptune** — import FLAC, WAV, OGG, or MP3 files and turn them into an editable lead, harmony, bass, and drum arrangement on new tracks as one undoable edit.
 - **Optional OpenCode AI** — connects to a local `opencode serve` instance, lists available models, labels local and rate-limited free models, validates the returned JSON strictly, previews a draft, and applies it as one undoable edit.
-- **Built-in Help** — a topic-based Help window covers the editor, playback, generation, export, AI composition, shortcuts, and troubleshooting.
+- **Built-in Help** — a topic-based Help window covers the editor, playback, audio import, generation, export, AI composition, shortcuts, and troubleshooting.
 - **Export** — Standard MIDI File, FLAC, WAV, MP3, and Little Sound DJ `.lsdsng` songs.
 
 ## Requirements
@@ -24,6 +25,7 @@ A native macOS chiptune composer and tracker written in Objective-C with AppKit.
 - Xcode 16 or later with the command-line tools.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`.
 - Optional: LAME for MP3 export: `brew install lame`.
+- Optional: ffmpeg for Ogg import on macOS versions without a native Ogg decoder: `brew install ffmpeg`.
 - Optional: OpenCode 2.2.x for AI composition.
 
 ## Build, test, and run
@@ -49,6 +51,7 @@ The app is sandbox-disabled and hardened-runtime enabled, matching the direct-di
 - **Key and Scale** — changing Key transposes every pitched note by the shortest semitone distance to the new root. Changing Scale snaps pitched notes to the nearest note in the selected key and scale. Noise tracks keep their drum pitches.
 - **Transport** — Space plays or pauses when the editor has focus; Return stops and rewinds; the toolbar has Play and Stop buttons. Playback stops automatically at the end of the song, or repeats when **Loop** is on; press Play after the end to rewind and restart. **Follow** is on by default so the editor scrolls with the playhead; scrolling manually during playback turns Follow off so the timeline stays where you put it. Tempo, mixer, instrument, and effect changes apply without restarting playback.
 - **Generate** — Cmd+R creates a new seeded song. **Regenerate Track** reuses the song seed for the selected track.
+- **Import audio** — choose **File > Import Audio as Chiptune…** (Shift+Cmd+I) or click **Import Audio…** in the toolbar. Pick a FLAC, WAV, OGG, or MP3 file; the app detects a lead melody, bass line, and percussion onsets, then builds chord-tone harmony from the bass roots and song scale. The parts become a lead track (Pulse 25), harmony track (Pulse 12.5), bass track (Triangle), and drum track (Noise). Each part is quantized to the current tempo and 16th-note grid and added after the latest note in the song (or at the playhead when the song is empty). The song grows automatically, and the import is one undoable edit. When fewer than four track slots remain, parts are added in lead, bass, drums, harmony order; an eight-track song must have a track deleted before importing.
 - **Export** — Cmd+E opens the export sheet. Choose FLAC, MP3, WAV, MIDI, or LSDj. Audio exports render through the same `ChipRenderer` used for playback. LSDj export writes a single-song `.lsdsng` file: each bar becomes a 16-step phrase, groups of up to 16 bars become chains, and each chain group occupies one song row. Pulse tracks map to PU1/PU2, triangle and wavetable tracks to WAVE, and noise tracks to NOISE; one LSDj instrument is created per audible track.
 
 An example project is included at `Examples/Neon Circuit.chip`; open it with the app to hear a complete four-track song.
@@ -108,6 +111,9 @@ AudioEngine ── ChipRenderer ── ChipSynth voices
     │
 ExportService ── FLAC/WAV via AudioToolbox, MP3 via LAME, MIDI via MIDIWriter,
                   LSDj via vendored libLSDJ
+
+AudioImportService ── AVAudioFile / CoreAudio, optional ffmpeg fallback
+                  └── pitch detection and note segmentation
 ```
 
 The renderer is shared by playback and export, so the audible result and exported audio follow the same code path.
@@ -116,6 +122,9 @@ The renderer is shared by playback and export, so the audible result and exporte
 
 - Section editing UI, velocity lane, zoom controls, multi-select, copy/paste, metronome, and preferences are not implemented yet.
 - MP3 export requires an external LAME installation.
+- Audio import is a best-effort transcription: dense mixes can produce octave errors or simplified rhythms, and the app does not detect tempo automatically, so set the project tempo to match the recording first. Pitched parts are monophonic, and harmony is generated from detected bass roots and the song scale rather than extracted note-for-note.
+- Ogg import uses CoreAudio on recent macOS versions and falls back to an external `ffmpeg` when the native decoder is unavailable.
+- Audio imports are limited to five minutes and the 256-bar song limit. Extracted parts are capped at 3,000 lead notes, 2,000 bass notes, 3,000 harmony notes, and 4,000 drum hits.
 - AI composition requires a running OpenCode server and a model that is available in your region.
 - Release signing, notarization, and DMG packaging are documented in [docs/RELEASE.md](docs/RELEASE.md) but are not automated with a certificate in this repository.
 

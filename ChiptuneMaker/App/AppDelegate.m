@@ -15,6 +15,7 @@
 - (void)showPianoRoll:(id)sender;
 - (void)toggleFollowPlayhead:(id)sender;
 - (void)exportSong:(id)sender;
+- (void)importAudio:(id)sender;
 - (void)showHelp:(id)sender;
 - (void)showAIHelp:(id)sender;
 - (void)undo:(id)sender;
@@ -208,6 +209,9 @@
     NSMenu *recentMenu = [[NSMenu alloc] initWithTitle:@"Open Recent"];
     [recentMenu addItemWithTitle:@"Clear Menu" action:@selector(clearRecentDocuments:) keyEquivalent:@""];
     recent.submenu = recentMenu;
+    [fileMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *importAudio = [fileMenu addItemWithTitle:@"Import Audio as Chiptune…" action:@selector(importAudio:) keyEquivalent:@"i"];
+    importAudio.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
     [fileMenu addItem:[NSMenuItem separatorItem]];
     [fileMenu addItemWithTitle:@"Close" action:@selector(performClose:) keyEquivalent:@"w"];
     [fileMenu addItemWithTitle:@"Save…" action:@selector(saveDocument:) keyEquivalent:@"s"];

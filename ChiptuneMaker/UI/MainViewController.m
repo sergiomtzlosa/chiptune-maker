@@ -11,6 +11,7 @@
 #import "PianoRollView.h"
 #import "PatternGenerator.h"
 #import "ExportService.h"
+#import "AudioImportService.h"
 #import "AIGeneratorWindowController.h"
 #import "ChiptuneTheme.h"
 #import "TimelineScrollSupport.h"
@@ -35,6 +36,7 @@
 @property (nonatomic, strong) NSTextField *seedField;
 @property (nonatomic, strong) NSTextField *statusLabel;
 @property (nonatomic, strong) NSButton *playButton;
+@property (nonatomic, strong) NSButton *importAudioButton;
 @property (nonatomic, strong) NSButton *loopCheck;
 @property (nonatomic, strong) NSButton *followCheck;
 @property (nonatomic, strong) NSProgressIndicator *progressIndicator;
@@ -64,6 +66,9 @@
 @property (nonatomic, assign) BOOL suppressAudioReload;
 @property (nonatomic, assign) BOOL followPlayhead;
 @property (nonatomic, assign) BOOL didPrepareAudio;
+@property (nonatomic, assign) BOOL audioImportInProgress;
+@property (nonatomic, copy) NSString *transientStatusMessage;
+@property (nonatomic, assign) NSTimeInterval transientStatusExpiry;
 @property (nonatomic, strong) NSLayoutYAxisAnchor *toolbarBottomAnchor;
 @property (nonatomic, strong) NSLayoutYAxisAnchor *splitBottomAnchor;
 #if DEBUG
@@ -131,7 +136,7 @@
     [self.barsValueLabel.widthAnchor constraintEqualToConstant:20].active = YES;
     self.barsStepper = [[NSStepper alloc] init];
     self.barsStepper.minValue = 1;
-    self.barsStepper.maxValue = 16;
+    self.barsStepper.maxValue = 256;
     self.barsStepper.increment = 1;
     self.barsStepper.integerValue = 4;
     self.barsStepper.target = self;
@@ -207,10 +212,16 @@
     NSButton *regenerateButton = [NSButton buttonWithTitle:@"Regenerate Track" target:self action:@selector(regenerateTrack:)];
     regenerateButton.bezelStyle = NSBezelStyleRounded;
 
+    self.importAudioButton = [NSButton buttonWithTitle:@"Import Audio…" target:self action:@selector(importAudio:)];
+    self.importAudioButton.bezelStyle = NSBezelStyleRounded;
+    self.importAudioButton.toolTip = @"Arrange a FLAC, WAV, OGG, or MP3 song as chiptune tracks";
+    self.importAudioButton.accessibilityLabel = @"Import audio as chiptune";
+
     NSStackView *row2 = [NSStackView stackViewWithViews:@[
         self.modeControl,
         [self labelWithString:@"Pitch"], self.pitchPopup, self.octaveStepper,
         self.loopCheck, self.followCheck,
+        self.importAudioButton,
         [self labelWithString:@"Seed"], self.seedField, regenerateButton
     ]];
     row2.orientation = NSUserInterfaceLayoutOrientationHorizontal;
@@ -600,9 +611,18 @@
     NSInteger beatCount = song.timeSignatureNumerator;
     BOOL playing = self.audioEngine.isPlaying;
     NSString *transport = playing ? @"Playing" : @"Stopped";
-    self.statusLabel.stringValue = [NSString stringWithFormat:@"Bar %ld/%ld · Beat %ld/%ld · %@",
-                                    (long)MIN(bar + 1, song.lengthBars), (long)song.lengthBars,
-                                    (long)MIN(beat, beatCount), (long)beatCount, transport];
+    NSTimeInterval now = [NSProcessInfo processInfo].systemUptime;
+    if (self.transientStatusMessage.length > 0 && now < self.transientStatusExpiry) {
+        // Keep the last import/export result visible for a few seconds instead
+        // of replacing it immediately with the transport readout.
+    } else {
+        if (self.transientStatusMessage.length > 0) {
+            self.transientStatusMessage = nil;
+        }
+        self.statusLabel.stringValue = [NSString stringWithFormat:@"Bar %ld/%ld · Beat %ld/%ld · %@",
+                                        (long)MIN(bar + 1, song.lengthBars), (long)song.lengthBars,
+                                        (long)MIN(beat, beatCount), (long)beatCount, transport];
+    }
     NSString *title = playing ? @"❚❚ Pause" : @"▶ Play";
     if (![self.playButton.title isEqualToString:title]) {
         self.playButton.title = title;
@@ -807,6 +827,202 @@
     [self refreshUI];
 }
 
+#pragma mark - Audio import
+
+- (void)importAudio:(id)sender {
+    if (self.audioImportInProgress) {
+        NSBeep();
+        return;
+    }
+    if (!self.view.window) return;
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.title = @"Import Audio as Chiptune";
+    panel.message = @"Choose a FLAC, WAV, OGG, or MP3 file. Lead, bass, drum, and harmony parts are transcribed to the current tempo and added on new tracks.";
+    panel.allowedContentTypes = [AudioImportService supportedContentTypes];
+    panel.allowsMultipleSelection = NO;
+    panel.canChooseDirectories = NO;
+    panel.canChooseFiles = YES;
+    __weak typeof(self) weakSelf = self;
+    [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
+        if (response != NSModalResponseOK || !panel.URL) return;
+        [weakSelf beginAudioImportAtURL:panel.URL];
+    }];
+}
+
+- (void)beginAudioImportAtURL:(NSURL *)url {
+    if (self.audioImportInProgress || !url) return;
+    self.audioImportInProgress = YES;
+    self.importAudioButton.enabled = NO;
+    self.progressIndicator.hidden = NO;
+    [self.progressIndicator startAnimation:nil];
+    [self showTransientStatus:[NSString stringWithFormat:@"Analyzing %@…", url.lastPathComponent]];
+
+    Song *snapshot = [self.document.song copy];
+    AudioImportOptions *options = [AudioImportOptions defaultOptions];
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        @autoreleasepool {
+            NSError *conversionError = nil;
+            AudioImportResult *result = [AudioImportService transcribeAudioAtURL:url
+                                                                             song:snapshot
+                                                                          options:options
+                                                                            error:&conversionError];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) self = weakSelf;
+                if (!self) return;
+                self.audioImportInProgress = NO;
+                self.importAudioButton.enabled = YES;
+                [self.progressIndicator stopAnimation:nil];
+                self.progressIndicator.hidden = YES;
+                if (!result) {
+                    [self presentAudioImportError:conversionError];
+                    return;
+                }
+                [self applyImportedAudioResult:result sourceURL:url];
+            });
+        }
+    });
+}
+
+- (void)applyImportedAudioResult:(AudioImportResult *)result sourceURL:(NSURL *)url {
+    NSArray<AudioImportPart *> *availableParts = result.parts ?: @[];
+    if (availableParts.count == 0 && result.notes.count > 0) {
+        // Keep the old single-track result shape working for callers that only
+        // populate `notes`.
+        AudioImportPart *lead = [[AudioImportPart alloc] init];
+        lead.role = AudioImportPartRoleLead;
+        lead.name = @"Lead";
+        lead.instrument = ChipInstrumentPulse25;
+        lead.notes = result.notes;
+        availableParts = @[lead];
+    }
+    if (availableParts.count == 0) {
+        [self presentNoMelodyAlertForURL:url];
+        return;
+    }
+
+    Song *song = self.document.song;
+    NSInteger trackLimit = 8;
+    NSInteger availableSlots = trackLimit - (NSInteger)song.tracks.count;
+    if (availableSlots <= 0) {
+        [self presentAudioImportError:[NSError errorWithDomain:AudioImportErrorDomain
+                                                          code:AudioImportErrorSongLimit
+                                                      userInfo:@{NSLocalizedDescriptionKey: @"This song already has eight tracks. Delete a track before importing an arrangement."}]];
+        return;
+    }
+
+    // Prefer a complete band when the song has room: melody first, then the
+    // rhythm section, then harmony.
+    NSArray<NSNumber *> *priority = @[
+        @(AudioImportPartRoleLead),
+        @(AudioImportPartRoleBass),
+        @(AudioImportPartRoleDrums),
+        @(AudioImportPartRoleHarmony)
+    ];
+    NSMutableArray<AudioImportPart *> *selectedParts = [NSMutableArray array];
+    for (NSNumber *role in priority) {
+        if ((NSInteger)selectedParts.count >= availableSlots) break;
+        for (AudioImportPart *part in availableParts) {
+            if (part.role == role.integerValue && part.notes.count > 0) {
+                [selectedParts addObject:part];
+                break;
+            }
+        }
+    }
+    if (selectedParts.count == 0) {
+        for (AudioImportPart *part in availableParts) {
+            if (part.notes.count == 0) continue;
+            [selectedParts addObject:part];
+            if ((NSInteger)selectedParts.count >= availableSlots) break;
+        }
+    }
+
+    NSUInteger nonEmptyPartCount = 0;
+    for (AudioImportPart *part in availableParts) {
+        if (part.notes.count > 0) nonEmptyPartCount++;
+    }
+
+    uint64_t playheadTick = (uint64_t)MAX(0.0, self.audioEngine.currentTick);
+    uint64_t startTick = [AudioImportService startTickForAppendingToSong:song playheadTick:playheadTick];
+    NSString *baseName = url.lastPathComponent.stringByDeletingPathExtension;
+    if (baseName.length == 0) baseName = @"Audio";
+    if (baseName.length > 36) baseName = [[baseName substringToIndex:36] stringByAppendingString:@"…"];
+
+    // Check the whole arrangement against a disposable copy before touching the
+    // document, so a failed import never leaves half the tracks behind.
+    Song *probe = [song copy];
+    NSError *appendError = nil;
+    if (![AudioImportService appendParts:selectedParts
+                                   toSong:probe
+                                startTick:startTick
+                                 baseName:baseName
+                                    error:&appendError]) {
+        [self presentAudioImportError:appendError];
+        return;
+    }
+
+    NSInteger originalTrackCount = (NSInteger)song.tracks.count;
+    NSUInteger leadPartIndex = NSNotFound;
+    for (NSUInteger i = 0; i < selectedParts.count; i++) {
+        if (selectedParts[i].role == AudioImportPartRoleLead) {
+            leadPartIndex = i;
+            break;
+        }
+    }
+
+    [self.document performEditNamed:@"Import Audio as Chiptune" block:^(Song *edited) {
+        NSError *editError = nil;
+        [AudioImportService appendParts:selectedParts
+                                 toSong:edited
+                              startTick:startTick
+                               baseName:baseName
+                                  error:&editError];
+    }];
+
+    self.currentTrackIndex = originalTrackCount + (leadPartIndex == NSNotFound ? 0 : (NSInteger)leadPartIndex);
+    [self refreshUI];
+    [self.stepView setNeedsDisplay:YES];
+    [self.pianoRollView setNeedsDisplay:YES];
+
+    NSUInteger importedNotes = 0;
+    for (AudioImportPart *part in selectedParts) importedNotes += part.notes.count;
+    NSString *trackWord = selectedParts.count == 1 ? @"track" : @"tracks";
+    NSString *status = [NSString stringWithFormat:@"Imported %lu notes on %lu new %@ from %@",
+                        (unsigned long)importedNotes,
+                        (unsigned long)selectedParts.count,
+                        trackWord,
+                        url.lastPathComponent];
+    if (selectedParts.count < nonEmptyPartCount) {
+        status = [status stringByAppendingString:@" (track limit reached)"];
+    }
+    [self showTransientStatus:status];
+}
+
+- (void)presentAudioImportError:(NSError *)error {
+    NSString *message = error.localizedDescription ?: @"Unknown audio import error.";
+    [self showTransientStatus:@"Audio import failed"];
+    if (!self.view.window) return;
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Audio Import Failed";
+    alert.informativeText = message;
+    [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
+}
+
+- (void)presentNoMelodyAlertForURL:(NSURL *)url {
+    [self showTransientStatus:@"No musical parts detected"];
+    if (!self.view.window) return;
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"No Musical Parts Detected";
+    alert.informativeText = [NSString stringWithFormat:@"“%@” did not contain a clear melody, bass line, or percussion. Try a recording with distinct instruments, or set the project tempo to match the audio.", url.lastPathComponent ?: @"The audio file"];
+    [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
+}
+
+- (void)showTransientStatus:(NSString *)message {
+    self.transientStatusMessage = message ?: @"";
+    self.transientStatusExpiry = [NSProcessInfo processInfo].systemUptime + 6.0;
+    self.statusLabel.stringValue = self.transientStatusMessage;
+}
+
 #pragma mark - Tracks
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
@@ -857,6 +1073,7 @@
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
+    if (self.refreshing) return;
     NSInteger row = self.trackTable.selectedRow;
     if (row < 0) return;
     self.currentTrackIndex = row;

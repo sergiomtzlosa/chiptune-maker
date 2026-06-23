@@ -6,6 +6,7 @@ NSString *const ChiptuneHelpTopicSteps = @"steps";
 NSString *const ChiptuneHelpTopicPianoRoll = @"piano-roll";
 NSString *const ChiptuneHelpTopicPlayback = @"playback";
 NSString *const ChiptuneHelpTopicGeneration = @"generation";
+NSString *const ChiptuneHelpTopicImporting = @"importing";
 NSString *const ChiptuneHelpTopicSaving = @"saving";
 NSString *const ChiptuneHelpTopicAI = @"ai";
 NSString *const ChiptuneHelpTopicShortcuts = @"shortcuts";
@@ -134,6 +135,23 @@ NSString *const ChiptuneHelpTopicTroubleshooting = @"troubleshooting";
                     "- The song seed is reused, so regenerating the same track twice gives the same result.\n"
                     "## Editing generated material\n"
                     "Generated notes are ordinary notes. Edit them in the Steps or Piano Roll view, then save or export. Generation is undoable as a single action." },
+        @{ @"id": ChiptuneHelpTopicImporting,
+           @"title": @"Importing Audio",
+           @"body": @"# Importing Audio\n"
+                    "Chiptune Maker can turn a recording into a small, editable chiptune arrangement.\n"
+                    "## Import a file\n"
+                    "- Choose **File > Import Audio as Chiptune…**, press Shift+Cmd+I, or click **Import Audio…** in the toolbar.\n"
+                    "- The open panel accepts **FLAC**, **WAV**, **OGG**, and **MP3** files.\n"
+                    "- The app detects a lead melody, a bass line, and percussion onsets, then generates chord-tone harmony from the bass roots and song scale. Each part is quantized to the song's sixteenth-note grid and current tempo and added on its own new track after the latest note in the song, or at the playhead when the song is empty.\n"
+                    "- Lead uses **Pulse 25**, harmony uses **Pulse 12.5**, bass uses **Triangle**, and drums use **Noise** (kick 36, snare 48, hat 72).\n"
+                    "- The song length grows automatically when the arrangement needs more bars. The whole import is one undoable edit.\n"
+                    "## Best results\n"
+                    "- Use a recording with a clear lead line and rhythm section. Dense mixes may produce simplified rhythms or octave errors, and harmony follows detected bass roots plus the song scale rather than every chord note.\n"
+                    "- Set the project tempo to match the recording before importing; the app does not detect tempo automatically.\n"
+                    "- When fewer than four track slots remain, parts are added in **lead, bass, drums, harmony** order. Delete a track before importing into a song that already has eight tracks.\n"
+                    "## Ogg support\n"
+                    "- Recent macOS versions decode Ogg with CoreAudio. If your macOS version cannot open the file, install ffmpeg with `brew install ffmpeg`; the app uses it automatically as a fallback decoder.\n"
+                    "- Imported audio must be shorter than five minutes and fit within the 256-bar song limit. Extracted parts are capped at 3,000 lead notes, 2,000 bass notes, 3,000 harmony notes, and 4,000 drum hits." },
         @{ @"id": ChiptuneHelpTopicSaving,
            @"title": @"Saving & Exporting",
            @"body": @"# Saving & Exporting\n"
@@ -176,6 +194,7 @@ NSString *const ChiptuneHelpTopicTroubleshooting = @"troubleshooting";
                     "@ Space\tPlay or pause\n"
                     "@ Return\tStop and rewind\n"
                     "@ Cmd+R\tGenerate a new seeded song\n"
+                    "@ Shift+Cmd+I\tImport audio as chiptune\n"
                     "@ Cmd+E\tOpen the export sheet\n"
                     "@ Cmd+N\tNew document\n"
                     "@ Cmd+O\tOpen a document\n"

@@ -8,6 +8,7 @@ extern NSString *const ChiptuneHelpTopicSteps;
 extern NSString *const ChiptuneHelpTopicPianoRoll;
 extern NSString *const ChiptuneHelpTopicPlayback;
 extern NSString *const ChiptuneHelpTopicGeneration;
+extern NSString *const ChiptuneHelpTopicImporting;
 extern NSString *const ChiptuneHelpTopicSaving;
 extern NSString *const ChiptuneHelpTopicAI;
 extern NSString *const ChiptuneHelpTopicShortcuts;
