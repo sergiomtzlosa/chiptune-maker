@@ -269,4 +269,18 @@ static NSUInteger ZeroCrossingCount(const float *samples, NSUInteger count) {
     XCTAssertLessThanOrEqual(renderer.currentTick, (double)song.totalTicks);
 }
 
+- (void)testExportCanRenderReleaseTailPastSongEnd {
+    Song *song = [self songWithPitch:69 tempo:300];
+    ChipRenderer *renderer = [self rendererForSong:song];
+    renderer.stopsAtSongEnd = NO;
+    float left[512], right[512];
+
+    for (NSUInteger block = 0; block < 200; block++) {
+        [renderer renderFrames:512 left:left right:right];
+    }
+
+    XCTAssertTrue(renderer.playing, @"Export rendering should continue past the final tick for the release tail");
+    XCTAssertGreaterThan(renderer.currentTick, (double)song.totalTicks);
+}
+
 @end

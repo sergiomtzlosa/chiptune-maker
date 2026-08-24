@@ -198,6 +198,7 @@ NSString *const ChiptuneHelpTopicTroubleshooting = @"troubleshooting";
            @"body": @"# Troubleshooting\n"
                     "## No sound\n"
                     "- Press **Space** or click **Play**; the audio engine starts on demand.\n"
+                    "- Playback stops at the final bar. Press **Play** again to rewind and restart, or enable **Loop** to repeat the song.\n"
                     "- Check the track's volume and pan, and make sure it is not muted. If any track is soloed, only soloed tracks are audible.\n"
                     "- Check the macOS output device and system volume. Audio follows the current default output.\n"
                     "## AI cannot connect\n"

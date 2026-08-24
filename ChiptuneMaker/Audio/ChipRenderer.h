@@ -12,6 +12,9 @@ ChipInstrumentParams ChipInstrumentParamsForTrack(Track *track);
 @property (nonatomic, assign) double sampleRate;
 @property (nonatomic, assign) BOOL playing;
 @property (nonatomic, assign) BOOL loopEnabled;
+/// When YES (the default), playback stops at the final tick. Export sets this
+/// to NO so release tails after the last note are still rendered.
+@property (nonatomic, assign) BOOL stopsAtSongEnd;
 @property (nonatomic, assign) uint64_t loopStartTick;
 @property (nonatomic, assign) uint64_t loopEndTick;
 @property (nonatomic, assign, readonly) double currentTick;
