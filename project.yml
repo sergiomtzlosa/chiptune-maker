@@ -73,6 +73,7 @@ targets:
           - $(SRCROOT)/ChiptuneMaker/Generation
           - $(SRCROOT)/ChiptuneMaker/Export
           - $(SRCROOT)/ChiptuneMaker/AI
+          - $(SRCROOT)/ChiptuneMaker/Import
           - $(SRCROOT)/ChiptuneMaker/UI
           - $(SRCROOT)/ChiptuneMaker/App
         OTHER_CFLAGS:
